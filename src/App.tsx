@@ -516,36 +516,37 @@ const DictionaryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [dictionary, setDictionary] = useState<any[]>(dictionaryData);
   const [loading, setLoading] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const itemsPerPage = 6; // Reduced for better spacing
 
   const getApiBase = () => {
     const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-    if (hostname.includes('github.dev')) {
-      return `https://${hostname.replace('-5173', '-8000')}`;
-    }
+    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:8000';
+    if (hostname.includes('github.dev')) return `https://${hostname.replace('-5173', '-8000')}`;
     return 'http://localhost:8000';
   };
 
   const API_BASE = getApiBase();
 
   const filteredData = useMemo(() => {
+    setCurrentPage(1);
     return dictionary.filter(item => 
       item.word.toLowerCase().includes(searchTerm.toLowerCase()) ||
       item.category.toLowerCase().includes(searchTerm.toLowerCase())
     );
   }, [searchTerm, dictionary]);
 
+  const totalPages = Math.ceil(filteredData.length / itemsPerPage);
+  const currentData = filteredData.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   return (
     <div className="animate-pop container" style={{ padding: '4rem 0' }}>
       <div className="flex justify-between items-end mb-12">
         <div>
-          <h1 style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>FSL <span style={{ color: 'var(--tertiary)' }}>Dictionary</span></h1>
+          <h1 style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>FSL <span style={{ color: 'var(--accent)' }}>Dictionary</span></h1>
           <p style={{ opacity: 0.6, fontSize: '1.2rem' }}>Browse sign entries powered by BISIG API.</p>
         </div>
-        <div style={{ position: 'relative', width: '300px' }}>
+        <div style={{ position: 'relative', width: '350px' }}>
           <input 
             type="text" 
             className="pop-input" 
@@ -558,43 +559,117 @@ const DictionaryPage = () => {
         </div>
       </div>
       
-      {loading ? (
-        <div style={{ padding: '8rem 0', textAlign: 'center' }}>
-          <div className="loading" style={{ width: '40px', height: '40px', border: '4px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%', margin: '0 auto' }}></div>
-        </div>
-      ) : filteredData.length === 0 ? (
+      {filteredData.length === 0 ? (
         <div style={{ padding: '8rem 0', textAlign: 'center', opacity: 0.5 }}>
           <Search size={48} style={{ marginBottom: '1rem' }} />
           <p style={{ fontSize: '1.2rem', fontWeight: 800 }}>No signs found for "{searchTerm}"</p>
         </div>
       ) : (
-        <div className="dictionary-grid">
-          {filteredData.map((item) => (
-            <div key={item.id} className="card" style={{ padding: '1.5rem' }}>
-              <div style={{ background: 'var(--fg)', borderRadius: 'var(--rd-sm)', aspectRatio: '4/3', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                <video 
-                  src={`${API_BASE}/videos/${item.word.toLowerCase()}.mp4`} 
-                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                  onMouseOver={e => (e.target as HTMLVideoElement).play()}
-                  onMouseOut={e => {
-                    const v = (e.target as HTMLVideoElement);
-                    v.pause();
-                    v.currentTime = 0;
-                  }}
-                  muted
-                  loop
-                />
-              </div>
-              <div className="flex justify-between">
-                <div>
-                  <h3 style={{ fontSize: '1.2rem' }}>{item.word}</h3>
-                  <p style={{ fontSize: '0.65rem', fontWeight: 900, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '1px' }}>{item.category}</p>
+        <>
+          <div className="dictionary-grid">
+            {currentData.map((item) => (
+              <div key={item.id} className="card" style={{ padding: '1.5rem' }}>
+                <div style={{ background: 'var(--fg)', borderRadius: 'var(--rd-sm)', aspectRatio: '4/3', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                  <video 
+                    src={`${API_BASE}/videos/${item.word.toLowerCase()}.mp4`} 
+                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                    onMouseOver={e => (e.target as HTMLVideoElement).play()}
+                    onMouseOut={e => {
+                      const v = (e.target as HTMLVideoElement);
+                      v.pause();
+                      v.currentTime = 0;
+                    }}
+                    muted
+                    loop
+                  />
                 </div>
-                <div className="badge">FSL</div>
+                <div className="flex justify-between">
+                  <div>
+                    <h3 style={{ fontSize: '1.2rem' }}>{item.word}</h3>
+                    <p style={{ fontSize: '0.65rem', fontWeight: 900, opacity: 0.4, textTransform: 'uppercase', letterSpacing: '1px' }}>{item.category}</p>
+                  </div>
+                  <div className="badge">FSL</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Pagination Controls */}
+          {totalPages > 1 && (
+            <div className="flex justify-center" style={{ marginTop: '5rem', width: '100%', display: 'flex' }}>
+              <div className="flex items-center" style={{ 
+                background: 'var(--surface)', 
+                padding: '0.5rem', 
+                borderRadius: '100px', 
+                border: '2px solid var(--border)', 
+                boxShadow: 'var(--sh-pop)',
+                display: 'flex',
+                gap: '0.5rem'
+              }}>
+                <button 
+                  className="btn ghost" 
+                  onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                  disabled={currentPage === 1}
+                  style={{ 
+                    fontWeight: 900, 
+                    fontSize: '0.7rem', 
+                    opacity: currentPage === 1 ? 0.3 : 1, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '1.5px',
+                    padding: '0 1.5rem',
+                    height: '44px'
+                  }}
+                >
+                  Prev
+                </button>
+                
+                <div className="flex" style={{ gap: '0.5rem', padding: '0 0.5rem', borderLeft: '2px solid var(--border)', borderRight: '2px solid var(--border)' }}>
+                  {[...Array(totalPages)].map((_, i) => (
+                    <button 
+                      key={i} 
+                      className={`btn ${currentPage === i + 1 ? 'primary' : 'ghost'}`}
+                      onClick={() => setCurrentPage(i + 1)}
+                      style={{ 
+                        width: '44px', 
+                        height: '44px', 
+                        padding: 0, 
+                        borderRadius: '50%', 
+                        fontWeight: 900,
+                        fontSize: '1rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275)',
+                        transform: currentPage === i + 1 ? 'scale(1.1)' : 'scale(1)',
+                        boxShadow: currentPage === i + 1 ? 'none' : 'none',
+                        border: currentPage === i + 1 ? 'none' : 'transparent'
+                      }}
+                    >
+                      {i + 1}
+                    </button>
+                  ))}
+                </div>
+
+                <button 
+                  className="btn ghost" 
+                  onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                  disabled={currentPage === totalPages}
+                  style={{ 
+                    fontWeight: 900, 
+                    fontSize: '0.7rem', 
+                    opacity: currentPage === totalPages ? 0.3 : 1, 
+                    textTransform: 'uppercase', 
+                    letterSpacing: '1.5px',
+                    padding: '0 1.5rem',
+                    height: '44px'
+                  }}
+                >
+                  Next
+                </button>
               </div>
             </div>
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );
