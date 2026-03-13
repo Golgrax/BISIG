@@ -316,6 +316,19 @@ const LandingPage = ({ setPage }: any) => {
   );
 };
 
+// Helper to dynamically determine the API Base URL
+const getApiBase = () => {
+  const hostname = window.location.hostname;
+  if (hostname === 'localhost' || hostname === '127.0.0.1') {
+    return 'http://localhost:8000';
+  }
+  // Handle GitHub Codespaces URLs (port 5173 -> 8000)
+  if (hostname.includes('github.dev')) {
+    return `https://${hostname.replace('-5173', '-8000')}`;
+  }
+  return 'http://localhost:8000'; // Default fallback
+};
+
 const TranslatorPage = ({ addToHistory }: any) => {
   const [mode, setMode] = useState('sign-to-text');
   const [isListening, setIsListening] = useState(false);
@@ -323,19 +336,6 @@ const TranslatorPage = ({ addToHistory }: any) => {
   const [translatedVideos, setTranslatedVideos] = useState<any[]>([]);
   const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
   const [isTranslating, setIsTranslating] = useState(false);
-
-  // Dynamically determine the API Base URL
-  const getApiBase = () => {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') {
-      return 'http://localhost:8000';
-    }
-    // Handle GitHub Codespaces URLs (port 5173 -> 8000)
-    if (hostname.includes('github.dev')) {
-      return `https://${hostname.replace('-5173', '-8000')}`;
-    }
-    return 'http://localhost:8000'; // Default fallback
-  };
 
   const API_BASE = getApiBase();
 
@@ -348,7 +348,8 @@ const TranslatorPage = ({ addToHistory }: any) => {
     try {
       const response = await fetch(`${API_BASE}/translate?text=${encodeURIComponent(text)}`);
       const data = await response.json();
-      setTranslatedVideos(data.videos || []);
+      // Updated to match the new API response structure: data.results instead of data.videos
+      setTranslatedVideos(data.results || []);
       setCurrentVideoIndex(0);
       addToHistory({ mode: 't2s', text: text, time: 'Just now' });
     } catch (err) {
@@ -518,13 +519,6 @@ const DictionaryPage = () => {
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 6; // Reduced for better spacing
-
-  const getApiBase = () => {
-    const hostname = window.location.hostname;
-    if (hostname === 'localhost' || hostname === '127.0.0.1') return 'http://localhost:8000';
-    if (hostname.includes('github.dev')) return `https://${hostname.replace('-5173', '-8000')}`;
-    return 'http://localhost:8000';
-  };
 
   const API_BASE = getApiBase();
 
