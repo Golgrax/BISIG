@@ -320,16 +320,71 @@ const TranslatorPage = ({ addToHistory }: any) => {
   const [mode, setMode] = useState('sign-to-text');
   const [isListening, setIsListening] = useState(false);
   const [inputText, setInputText] = useState('');
-  const [isStarred, setIsStarred] = useState(false);
+  const [translatedVideos, setTranslatedVideos] = useState<any[]>([]);
+  const [currentVideoIndex, setCurrentVideoIndex] = useState(0);
+  const [isTranslating, setIsTranslating] = useState(false);
+
+  // Dynamically determine the API Base URL
+  const getApiBase = () => {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    // Handle GitHub Codespaces URLs (port 5173 -> 8000)
+    if (hostname.includes('github.dev')) {
+      return `https://${hostname.replace('-5173', '-8000')}`;
+    }
+    return 'http://localhost:8000'; // Default fallback
+  };
+
+  const API_BASE = getApiBase();
+
+  const translateText = async (text: string) => {
+    if (!text.trim()) {
+      setTranslatedVideos([]);
+      return;
+    }
+    setIsTranslating(true);
+    try {
+      const response = await fetch(`${API_BASE}/translate?text=${encodeURIComponent(text)}`);
+      const data = await response.json();
+      setTranslatedVideos(data.videos || []);
+      setCurrentVideoIndex(0);
+      addToHistory({ mode: 't2s', text: text, time: 'Just now' });
+    } catch (err) {
+      console.error('Translation error:', err);
+    } finally {
+      setIsTranslating(false);
+    }
+  };
+
+  // Real-time translation with debounce
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      if (inputText.trim()) {
+        translateText(inputText);
+      } else {
+        setTranslatedVideos([]);
+      }
+    }, 800); // Wait 800ms after last keystroke
+    return () => clearTimeout(timer);
+  }, [inputText]);
+
+  const handleVideoEnd = () => {
+    if (currentVideoIndex < translatedVideos.length - 1) {
+      setCurrentVideoIndex(prev => prev + 1);
+    } else {
+      setTimeout(() => setCurrentVideoIndex(0), 1000);
+    }
+  };
 
   const toggleMic = () => {
     setIsListening(!isListening);
     if (!isListening) {
       setTimeout(() => {
         setIsListening(false);
-        const result = "Kumusta! Magandang araw.";
+        const result = "Hello";
         setInputText(result);
-        addToHistory({ mode: 's2t', text: result, time: 'Just now' });
       }, 2000);
     }
   };
@@ -400,18 +455,44 @@ const TranslatorPage = ({ addToHistory }: any) => {
                   </div>
                   <span style={{ fontWeight: 800 }}>{mode !== 'sign-to-text' ? 'Avatar View' : 'Translated Text'}</span>
                 </div>
-                <div className="badge" style={{ fontSize: '0.7rem' }}>TAGALOG / ENG</div>
+                <div className="badge" style={{ fontSize: '0.7rem' }}>LIVE API</div>
               </div>
-              <div className="view-port dark" style={{ flex: 1 }}>
+              <div className="view-port dark" style={{ flex: 1, overflowY: 'hidden', padding: '0' }}>
                 {mode !== 'sign-to-text' ? (
-                  <div className="text-center">
-                    <div className="loading" style={{ width: '60px', height: '60px', border: '4px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }}></div>
-                    <p style={{ marginTop: '1.5rem', fontWeight: 800, letterSpacing: '2px', fontSize: '0.7rem', opacity: 0.6 }}>GENERATING POSES</p>
-                  </div>
+                  isTranslating ? (
+                    <div className="text-center">
+                      <div className="loading" style={{ width: '60px', height: '60px', border: '4px solid var(--accent)', borderTopColor: 'transparent', borderRadius: '50%' }}></div>
+                      <p style={{ marginTop: '1.5rem', fontWeight: 800, letterSpacing: '2px', fontSize: '0.7rem', opacity: 0.6 }}>TRANSLATING...</p>
+                    </div>
+                  ) : translatedVideos.length > 0 ? (
+                    <div className="flex flex-col items-center justify-center w-full h-full" style={{ background: '#000', position: 'relative' }}>
+                       <video 
+                         key={currentVideoIndex}
+                         src={translatedVideos[currentVideoIndex].url} 
+                         autoPlay 
+                         onEnded={handleVideoEnd}
+                         style={{ height: '100%', width: '100%', objectFit: 'contain' }} 
+                       />
+                       <div style={{ position: 'absolute', bottom: '2rem', left: '0', right: '0', textAlign: 'center' }}>
+                          <span className="badge accent" style={{ fontSize: '1.2rem', padding: '0.5rem 1.5rem', color: 'black', fontWeight: 900 }}>
+                            {translatedVideos[currentVideoIndex].word.toUpperCase()}
+                          </span>
+                          <div className="flex justify-center gap-1 mt-4">
+                            {translatedVideos.map((_, i) => (
+                              <div key={i} style={{ width: '8px', height: '8px', borderRadius: '50%', background: i === currentVideoIndex ? 'var(--accent)' : 'rgba(255,255,255,0.2)' }}></div>
+                            ))}
+                          </div>
+                       </div>
+                    </div>
+                  ) : (
+                    <div className="text-center">
+                      <p style={{ fontWeight: 800, opacity: 0.4, fontSize: '0.8rem' }}>AWAITING TEXT...</p>
+                    </div>
+                  )
                 ) : (
                   <div className="text-center">
-                    <h2 style={{ fontSize: '3.5rem', fontStyle: 'italic', marginBottom: '0.5rem' }}>"Kumusta!"</h2>
-                    <p style={{ fontWeight: 800, opacity: 0.4, textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '2px' }}>Hello / Greetings</p>
+                    <h2 style={{ fontSize: '3.5rem', fontStyle: 'italic', marginBottom: '0.5rem' }}>"..."</h2>
+                    <p style={{ fontWeight: 800, opacity: 0.4, textTransform: 'uppercase', fontSize: '0.8rem', letterSpacing: '2px' }}>Awaiting Sign Input</p>
                   </div>
                 )}
               </div>
@@ -433,26 +514,21 @@ const TranslatorPage = ({ addToHistory }: any) => {
 
 const DictionaryPage = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [dictionary, setDictionary] = useState<any[]>(dictionaryData); // Fallback to JSON initially
-  const [loading, setLoading] = useState(true);
+  const [dictionary, setDictionary] = useState<any[]>(dictionaryData);
+  const [loading, setLoading] = useState(false);
 
-  useEffect(() => {
-    const fetchDict = async () => {
-      try {
-        const q = query(collection(db, 'dictionary'), orderBy('word', 'asc'));
-        const snapshot = await getDocs(q);
-        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        if (data.length > 0) {
-          setDictionary(data);
-        }
-      } catch (err) {
-        console.warn('Firestore error, using local JSON data.', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchDict();
-  }, []);
+  const getApiBase = () => {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:8000';
+    }
+    if (hostname.includes('github.dev')) {
+      return `https://${hostname.replace('-5173', '-8000')}`;
+    }
+    return 'http://localhost:8000';
+  };
+
+  const API_BASE = getApiBase();
 
   const filteredData = useMemo(() => {
     return dictionary.filter(item => 
@@ -467,7 +543,7 @@ const DictionaryPage = () => {
       <div className="flex justify-between items-end mb-12">
         <div>
           <h1 style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>FSL <span style={{ color: 'var(--tertiary)' }}>Dictionary</span></h1>
-          <p style={{ opacity: 0.6, fontSize: '1.2rem' }}>Browse over {dictionary.length}+ Filipino Sign Language entries.</p>
+          <p style={{ opacity: 0.6, fontSize: '1.2rem' }}>Browse sign entries powered by BISIG API.</p>
         </div>
         <div style={{ position: 'relative', width: '300px' }}>
           <input 
@@ -495,8 +571,19 @@ const DictionaryPage = () => {
         <div className="dictionary-grid">
           {filteredData.map((item) => (
             <div key={item.id} className="card" style={{ padding: '1.5rem' }}>
-              <div style={{ background: 'var(--fg)', borderRadius: 'var(--rd-sm)', aspectRatio: '4/3', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                <Play color="white" fill="white" size={32} style={{ opacity: 0.5 }} />
+              <div style={{ background: 'var(--fg)', borderRadius: 'var(--rd-sm)', aspectRatio: '4/3', marginBottom: '1rem', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
+                <video 
+                  src={`${API_BASE}/videos/${item.word.toLowerCase()}.mp4`} 
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                  onMouseOver={e => (e.target as HTMLVideoElement).play()}
+                  onMouseOut={e => {
+                    const v = (e.target as HTMLVideoElement);
+                    v.pause();
+                    v.currentTime = 0;
+                  }}
+                  muted
+                  loop
+                />
               </div>
               <div className="flex justify-between">
                 <div>
