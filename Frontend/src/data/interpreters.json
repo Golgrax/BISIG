@@ -1,0 +1,6 @@
+[
+  { "id": 1, "name": "Maria Santos", "level": "Level 4 Senior", "location": "Quezon City", "specialty": "Medical/Legal", "available": true },
+  { "id": 2, "name": "Juan Dela Cruz", "level": "Level 3 Intermediate", "location": "Manila", "specialty": "Education", "available": true },
+  { "id": 3, "name": "Elena Reyes", "level": "Level 4 Senior", "location": "Davao City", "specialty": "Community", "available": false },
+  { "id": 4, "name": "Ricardo Gomez", "level": "Level 2 Junior", "location": "Cebu City", "specialty": "General", "available": true }
+]

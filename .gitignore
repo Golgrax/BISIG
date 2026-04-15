@@ -1,0 +1,82 @@
+# Root .gitignore for BISIG Ecosystem
+
+# --- Common / Editor ---
+.vscode/
+.idea/
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+.gemini/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+
+# --- Node / Frontend ---
+node_modules/
+dist/
+dist-ssr/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+
+# --- Logs / Cache ---
+*.log
+*.sqlite
+*.sqlite3
+db.sqlite
+.env
+.env.*
+!.env.example
+cache.json
+
+# --- Credentials ---
+*.key
+*.key.pub
+*.pub
+*.pem
+id_rsa
+id_rsa.pub
+ssh-key-*
+secrets/
+
+# --- Backend-API specific ---
+Backend-API/bisig.db
+Backend-API/server.log
+Backend-API/server_final.log
+Backend-API/videos/**/*
+!Backend-API/videos/**/
+!Backend-API/videos/**/README.md
+Backend-API/skeleton_videos/**/*
+!Backend-API/skeleton_videos/**/
+!Backend-API/skeleton_videos/**/README.md
+Backend-API/skeletons/**/*
+!Backend-API/skeletons/**/
+!Backend-API/skeletons/**/README.md
+Backend-API/models/
+
+# --- Frontend specific ---
+Frontend/.firebase/
+Frontend/firebase-debug.log*
+Frontend/firestore-debug.log*
+Frontend/ui-debug.log*
+Frontend/BISIG.docx-2.pdf
+Frontend/public/videos/
+Frontend/server.log
+
+# --- FSL-Datasets specific ---
+FSL-Datasets/videos/*
+!FSL-Datasets/videos/README.md
+FSL-Datasets/metadata/*
+!FSL-Datasets/metadata/README.md
+FSL-Datasets/fsl-server
+FSL-Datasets/logs
+FSL-Datasets/api.log

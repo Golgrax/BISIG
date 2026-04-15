@@ -1,0 +1,17 @@
+[
+  { "id": 1, "word": "Hello", "category": "Greetings", "videoUrl": "assets/videos/hello.mp4" },
+  { "id": 2, "word": "Thank You", "category": "Greetings", "videoUrl": "assets/videos/thankyou.mp4" },
+  { "id": 3, "word": "I Love You", "category": "Expression", "videoUrl": "assets/videos/iloveyou.mp4" },
+  { "id": 4, "word": "Mother", "category": "Family", "videoUrl": "assets/videos/mother.mp4" },
+  { "id": 5, "word": "Father", "category": "Family", "videoUrl": "assets/videos/father.mp4" },
+  { "id": 6, "word": "Friend", "category": "Social", "videoUrl": "assets/videos/friend.mp4" },
+  { "id": 7, "word": "School", "category": "Places", "videoUrl": "assets/videos/school.mp4" },
+  { "id": 8, "word": "Work", "category": "Places", "videoUrl": "assets/videos/work.mp4" },
+  { "id": 9, "word": "Help", "category": "Action", "videoUrl": "assets/videos/help.mp4" },
+  { "id": 10, "word": "Sorry", "category": "Expression", "videoUrl": "assets/videos/sorry.mp4" },
+  { "id": 11, "word": "Happy", "category": "Emotion", "videoUrl": "assets/videos/happy.mp4" },
+  { "id": 12, "word": "Beautiful", "category": "Descriptor", "videoUrl": "assets/videos/beautiful.mp4" },
+  { "id": 13, "word": "Eat", "category": "Action", "videoUrl": "assets/videos/eat.mp4" },
+  { "id": 14, "word": "Water", "category": "Food/Drink", "videoUrl": "assets/videos/water.mp4" },
+  { "id": 15, "word": "Good Morning", "category": "Greetings", "videoUrl": "assets/videos/goodmorning.mp4" }
+]

@@ -1,0 +1,534 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BISIG Universal Player</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #111; color: #fff; display: flex; flex-direction: column; align-items: center; padding: 20px; margin: 0; }
+        .container-wrapper { display: flex; gap: 20px; flex-wrap: wrap; justify-content: center; width: 100%; max-width: 1200px; }
+        .container { position: relative; width: 640px; height: 480px; background: #000; border: 2px solid #333; border-radius: 12px; overflow: hidden; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+        .preview-container { width: 320px; height: 240px; background: #1a1a1a; border: 2px solid #444; border-radius: 8px; overflow: hidden; display: flex; flex-direction: column; }
+        .preview-header { padding: 8px; background: #333; font-size: 0.8em; text-align: center; color: #00ff64; font-weight: bold; }
+        
+        canvas, video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: contain; }
+        .preview-container video { position: relative; width: 100%; height: 100%; }
+
+        .controls { margin-bottom: 20px; display: flex; flex-direction: column; align-items: center; gap: 12px; width: 100%; max-width: 640px; background: #222; padding: 20px; border-radius: 12px; border: 1px solid #333; }
+        .input-group { display: flex; gap: 10px; width: 100%; }
+        input[type="text"] { flex: 1; padding: 12px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; font-size: 1em; }
+        select { padding: 10px; border-radius: 6px; border: 1px solid #444; background: #000; color: #fff; cursor: pointer; }
+        .buttons { display: flex; gap: 10px; width: 100%; justify-content: center; }
+        button { padding: 12px 24px; background: #00ff64; color: #000; border: none; border-radius: 6px; cursor: pointer; font-size: 1em; font-weight: bold; transition: all 0.2s; flex: 1; max-width: 200px; }
+        button:hover { background: #00cc52; transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,255,100,0.3); }
+        button.secondary { background: #444; color: #fff; }
+        button.secondary:hover { background: #555; }
+        #status { font-size: 0.9em; color: #aaa; background: #111; padding: 8px 16px; border-radius: 20px; min-height: 1.2em; width: 100%; text-align: center; border: 1px solid #333; }
+        .settings-group { display: flex; gap: 15px; align-items: center; font-size: 0.9em; color: #ccc; }
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <div class="input-group">
+            <input type="text" id="phraseInput" placeholder="Enter phrase (e.g. 'hello how are you')">
+            <select id="formatSelect">
+                <option value="skeleton">Skeleton Data</option>
+                <option value="video">Original Video</option>
+                <option value="full_skeleton_video">Combined Video</option>
+            </select>
+        </div>
+        
+        <div class="settings-group">
+            <label>Language: 
+                <select id="langSelect">
+                    <option value="asl">ASL (American)</option>
+                    <option value="fsl">FSL (Filipino)</option>
+                </select>
+            </label>
+            <label>Priority Mode: 
+                <select id="modeSelect">
+                    <option value="mixed">Mixed (Smart Fallback)</option>
+                    <option value="pure">Pure (Exact Language Only)</option>
+                </select>
+            </label>
+        </div>
+
+        <div class="buttons">
+            <button onclick="fetchAndPlay()">TRANSLATE</button>
+            <button onclick="startRealtime()">LIVE (WS)</button>
+            <button class="secondary" onclick="stop()">STOP</button>
+        </div>
+        <div id="status">Ready</div>
+    </div>
+
+    <div class="container-wrapper">
+        <div class="container">
+            <canvas id="canvasPlayer" width="640" height="480"></canvas>
+            <video id="videoPlayer" class="hidden" playsinline controls></video>
+        </div>
+
+        <div id="previewSection" class="preview-container hidden">
+            <div class="preview-header">HUMAN REFERENCE VIDEO</div>
+            <video id="previewPlayer" muted playsinline loop controls></video>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('canvasPlayer');
+        const video = document.getElementById('videoPlayer');
+        const previewPlayer = document.getElementById('previewPlayer');
+        const previewSection = document.getElementById('previewSection');
+        const phraseInput = document.getElementById('phraseInput');
+        const langSelect = document.getElementById('langSelect');
+        const modeSelect = document.getElementById('modeSelect');
+        const formatSelect = document.getElementById('formatSelect');
+        const ctx = canvas.getContext('2d');
+        const status = document.getElementById('status');
+        
+        let frames = [];
+        let currentFrameIndex = 0;
+        let lastTimestamp = 0;
+        const frameInterval = 1000 / 30;
+        let isPlaying = false;
+        let videoPlaylist = [];
+        let currentVideoIndex = 0;
+
+        const POSE = [
+            [11, 12], [11, 13], [13, 15], [12, 14], [14, 16], // Torso & Arms
+            [11, 23], [12, 24], [23, 24], // Hips/Waist
+        ];
+        const FINGER_DATA = [
+            { color: '#ffff00', conns: [[0, 1], [1, 2], [2, 3], [3, 4]] },
+            { color: '#00ffff', conns: [[5, 6], [6, 7], [7, 8], [0, 5]] },
+            { color: '#ff00ff', conns: [[9, 10], [10, 11], [11, 12], [5, 9]] },
+            { color: '#00ff00', conns: [[13, 14], [14, 15], [15, 16], [9, 13]] },
+            { color: '#ffffff', conns: [[17, 18], [18, 19], [19, 20], [13, 17], [0, 17]] }
+        ];
+        const FACE = [
+            // Lips
+            [61, 146], [146, 91], [91, 181], [181, 84], [84, 17], [17, 314], [314, 405], [405, 321], [321, 375], [375, 291],
+            [61, 185], [185, 40], [40, 39], [39, 37], [37, 0], [0, 267], [267, 269], [269, 270], [270, 409], [409, 291],
+            // Left Eye
+            [33, 7], [7, 163], [163, 144], [144, 145], [145, 153], [153, 154], [154, 155], [155, 133],
+            [33, 246], [246, 161], [161, 160], [160, 159], [159, 158], [158, 157], [157, 173], [173, 133],
+            // Right Eye
+            [263, 249], [249, 390], [390, 373], [373, 374], [374, 380], [380, 381], [381, 382], [382, 362],
+            [263, 466], [466, 388], [388, 387], [387, 386], [386, 385], [385, 384], [384, 398], [398, 362],
+            // Eyebrows
+            [70, 63], [63, 105], [105, 66], [66, 107], [107, 55],
+            [300, 293], [293, 334], [334, 296], [296, 336], [336, 285],
+            // Nose Bridge
+            [168, 6], [6, 197], [197, 195], [195, 5]
+        ];
+
+        function stop() {
+            if (ws) { ws.close(); ws = null; }
+            isPlaying = false;
+            frames = [];
+            currentFrameIndex = 0;
+            sentWordsCount = 0;
+            videoPlaylist = [];
+            video.pause();
+            video.removeAttribute('src');
+            video.load();
+            video.classList.add('hidden');
+            previewPlayer.pause();
+            previewPlayer.removeAttribute('src');
+            previewPlayer.load();
+            previewSection.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            status.innerText = "Stopped";
+        }
+
+        function interpolateFrames(frameA, frameB, count = 15) {
+            const interpolated = [];
+            const LEFT_WRIST = 15, RIGHT_WRIST = 16;
+            
+            for (let i = 1; i <= count; i++) {
+                const alpha = i / (count + 1);
+                const newFrame = { pose: null, left_hand: null, right_hand: null, face: null };
+                
+                ['pose', 'left_hand', 'right_hand', 'face'].forEach(key => {
+                    let lmsA = frameA[key], lmsB = frameB[key];
+                    
+                    if (key === 'left_hand' || key === 'right_hand') {
+                        const wristIdx = (key === 'left_hand') ? LEFT_WRIST : RIGHT_WRIST;
+                        if (!lmsA && lmsB && frameA.pose) {
+                            const w = frameA.pose[wristIdx];
+                            lmsA = Array(21).fill().map(() => ({ x: w.x, y: w.y, z: w.z || 0 }));
+                        } else if (!lmsB && lmsA && frameB.pose) {
+                            const w = frameB.pose[wristIdx];
+                            lmsB = Array(21).fill().map(() => ({ x: w.x, y: w.y, z: w.z || 0 }));
+                        }
+                    }
+
+                    if (lmsA && lmsB && lmsA.length === lmsB.length) {
+                        newFrame[key] = lmsA.map((la, idx) => {
+                            const lb = lmsB[idx];
+                            const res = {
+                                x: la.x * (1 - alpha) + lb.x * alpha,
+                                y: la.y * (1 - alpha) + lb.y * alpha,
+                                z: (la.z || 0) * (1 - alpha) + (lb.z || 0) * alpha
+                            };
+                            if (la.visibility !== undefined) {
+                                res.visibility = la.visibility * (1 - alpha) + lb.visibility * alpha;
+                            }
+                            return res;
+                        });
+                    } else if (lmsA) {
+                        newFrame[key] = lmsA;
+                    } else if (lmsB) {
+                        newFrame[key] = lmsB;
+                    }
+                });
+                interpolated.push(newFrame);
+            }
+            return interpolated;
+        }
+
+        let ws = null;
+        let lastPlayedFrame = null;
+        let idleTime = 0;
+        let sentWordsCount = 0;
+        let typingTimer = null;
+
+        // Real-time listener for "LIVE" experience
+        phraseInput.addEventListener('input', () => {
+            const currentText = phraseInput.value;
+            
+            // Auto-connect if not connected
+            if (!ws || ws.readyState !== WebSocket.OPEN) {
+                if (!ws || ws.readyState === WebSocket.CONNECTING) return;
+                startRealtime();
+                return; 
+            }
+
+            // Word-by-word logic
+            const words = currentText.trim().split(/\s+/).filter(w => w.length > 0);
+            
+            // If they typed a space, send all pending words
+            if (currentText.endsWith(' ')) {
+                while (sentWordsCount < words.length) {
+                    sendToWS(words[sentWordsCount]);
+                    sentWordsCount++;
+                }
+            }
+
+            // Debounce for the very last word (if they stop typing)
+            clearTimeout(typingTimer);
+            typingTimer = setTimeout(() => {
+                const finalWords = phraseInput.value.trim().split(/\s+/).filter(w => w.length > 0);
+                while (sentWordsCount < finalWords.length) {
+                    sendToWS(finalWords[sentWordsCount]);
+                    sentWordsCount++;
+                }
+            }, 800);
+        });
+
+        // Reset tracking if input is cleared
+        phraseInput.addEventListener('keyup', (e) => {
+            if (phraseInput.value.trim() === "") {
+                sentWordsCount = 0;
+            }
+        });
+
+        function sendToWS(word) {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    word: word, 
+                    lang: langSelect.value, 
+                    mode: modeSelect.value
+                }));
+                status.innerText = `Streaming: ${word}`;
+            }
+        }
+
+        async function startRealtime() {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                const word = phraseInput.value.trim();
+                if (word) {
+                    // Send everything currently in the box that hasn't been sent
+                    const words = word.split(/\s+/).filter(w => w.length > 0);
+                    while (sentWordsCount < words.length) {
+                        sendToWS(words[sentWordsCount]);
+                        sentWordsCount++;
+                    }
+                }
+                return;
+            }
+
+            stop();
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const host = window.location.host;
+            ws = new WebSocket(`${protocol}//${host}/ws/translate`);
+            
+            status.innerText = "Connecting...";
+            
+            ws.onopen = () => {
+                status.innerText = "Live Mode Active - Just start typing!";
+                // Send current content if any
+                const word = phraseInput.value.trim();
+                if (word) {
+                    const words = word.split(/\s+/).filter(w => w.length > 0);
+                    while (sentWordsCount < words.length) {
+                        sendToWS(words[sentWordsCount]);
+                        sentWordsCount++;
+                    }
+                }
+            };
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                if (data.frames) {
+                    frames = frames.concat(data.frames);
+                    if (!isPlaying) {
+                        isPlaying = true;
+                        lastTimestamp = performance.now();
+                        requestAnimationFrame(animate);
+                    }
+                }
+                if (data.word) status.innerText = `Signing: ${data.word}`;
+                else if (data.type === 'idle') {
+                    status.innerText = "Live (Neutral Pose)";
+                }
+            };
+
+            ws.onclose = () => {
+                status.innerText = "WebSocket closed.";
+                ws = null;
+            };
+
+            ws.onerror = (err) => {
+                console.error("WebSocket Error:", err);
+                status.innerText = "Connection Error";
+            };
+        }
+
+        function startVideoPlayback() {
+            if (videoPlaylist.length === 0) return;
+            currentVideoIndex = 0;
+            playCurrentVideoInPlaylist();
+            video.classList.remove('hidden');
+            canvas.classList.add('hidden');
+        }
+
+        function playCurrentVideoInPlaylist() {
+            const videoData = videoPlaylist[currentVideoIndex];
+            const source = (typeof videoData === 'string') ? videoData : (videoData.local_url || videoData.url);
+            
+            video.src = source;
+            video.play().catch(e => {
+                console.error("Playback failed, trying remote fallback...", e);
+                if (videoData.remote_url) {
+                    video.src = videoData.remote_url;
+                    video.play().catch(() => {});
+                }
+            });
+            status.innerText = `Playing video ${currentVideoIndex + 1}/${videoPlaylist.length}`;
+            
+            if (videoData.remote_url || (typeof videoData === 'object' && videoData.url)) {
+                previewSection.classList.remove('hidden');
+                previewPlayer.src = videoData.remote_url || videoData.url;
+                previewPlayer.play().catch(() => {});
+            }
+        }
+
+        video.onended = () => {
+            currentVideoIndex++;
+            if (currentVideoIndex < videoPlaylist.length) {
+                playCurrentVideoInPlaylist();
+            } else {
+                status.innerText = "Playback finished";
+            }
+        };
+
+        async function fetchAndPlay() {
+            const text = phraseInput.value.trim();
+            if (!text) {
+                alert("Please enter some text to translate");
+                return;
+            }
+
+            stop();
+            status.innerText = "Translating...";
+            
+            try {
+                const lang = langSelect.value;
+                const mode = modeSelect.value;
+                const format = formatSelect.value;
+                
+                const response = await fetch(`/translate?text=${encodeURIComponent(text)}&lang=${lang}&mode=${mode}&format=${format}`);
+                const parsed = await response.json();
+                
+                if (parsed.error || parsed.detail) {
+                    throw new Error(parsed.error || parsed.detail);
+                }
+
+                if (parsed.video_blob) {
+                    videoPlaylist = [parsed.video_blob];
+                    startVideoPlayback();
+                    return;
+                }
+
+                if (parsed.results && Array.isArray(parsed.results)) {
+                    if (format === "video") {
+                        videoPlaylist = parsed.results;
+                        startVideoPlayback();
+                        return;
+                    }
+
+                    let extractedFrames = [];
+                    parsed.results.forEach((res, idx) => {
+                        if (res.skeleton && res.skeleton.length > 0) {
+                            if (extractedFrames.length > 0) {
+                                const last = extractedFrames[extractedFrames.length - 1];
+                                const first = res.skeleton[0];
+                                extractedFrames = extractedFrames.concat(interpolateFrames(last, first, 15));
+                            }
+                            extractedFrames = extractedFrames.concat(res.skeleton);
+                        }
+                    });
+
+                    if (extractedFrames.length > 0) {
+                        if (parsed.results[0].remote_url || parsed.results[0].url) {
+                            previewSection.classList.remove('hidden');
+                            previewPlayer.src = parsed.results[0].remote_url || parsed.results[0].url;
+                            previewPlayer.play().catch(() => {});
+                        }
+                        startSkeletonPlayback(extractedFrames);
+                        return;
+                    }
+                }
+
+                let extractedFrames = Array.isArray(parsed) ? parsed : (parsed.frames || parsed.skeleton);
+                if (extractedFrames && extractedFrames.length > 0) {
+                    startSkeletonPlayback(extractedFrames);
+                    return;
+                }
+
+                throw new Error("No signs found for this phrase.");
+
+            } catch (e) {
+                status.innerText = "Error: " + e.message;
+            }
+        }
+
+        function draw() {
+            let frame;
+            if (frames.length > 0) {
+                frame = frames.shift();
+                lastPlayedFrame = JSON.parse(JSON.stringify(frame));
+                idleTime = 0;
+            } else if (lastPlayedFrame) {
+                frame = JSON.parse(JSON.stringify(lastPlayedFrame));
+                idleTime += 0.05;
+                
+                const shift = Math.sin(idleTime * 1.5) * 0.006;
+                const sway = Math.cos(idleTime * 0.8) * 0.005;
+                
+                if (frame.pose) {
+                    [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].forEach(idx => {
+                        if (frame.pose[idx]) {
+                            frame.pose[idx].y += shift;
+                            frame.pose[idx].x += sway;
+                        }
+                    });
+                    [13, 14, 15, 16].forEach((idx, i) => {
+                        if (frame.pose[idx]) {
+                            frame.pose[idx].y += shift * 2.5;
+                            frame.pose[idx].x += sway + (Math.sin(idleTime + i) * 0.008);
+                        }
+                    });
+                }
+                if (frame.face) {
+                    frame.face.forEach(lm => {
+                        lm.y += shift;
+                        lm.x += sway;
+                    });
+                }
+            } else {
+                return;
+            }
+
+            const w = canvas.width, h = canvas.height;
+            ctx.clearRect(0, 0, w, h);
+
+            if (frame.face) {
+                ctx.strokeStyle = '#888'; ctx.lineWidth = 1; ctx.beginPath();
+                FACE.forEach(([s, e]) => {
+                    const p1 = frame.face[s], p2 = frame.face[e];
+                    if (p1 && p2) { ctx.moveTo(p1.x * w, p1.y * h); ctx.lineTo(p2.x * w, p2.y * h); }
+                });
+                ctx.stroke();
+            }
+
+            if (frame.pose) {
+                ctx.strokeStyle = '#00ff64'; ctx.lineWidth = 3; ctx.beginPath();
+                POSE.forEach(([s, e]) => {
+                    const p1 = frame.pose[s], p2 = frame.pose[e];
+                    if (p1 && p2 && (p1.visibility || 1.0) > 0.5 && (p2.visibility || 1.0) > 0.5) {
+                        ctx.moveTo(p1.x * w, p1.y * h); ctx.lineTo(p2.x * w, p2.y * h);
+                    }
+                });
+                ctx.stroke();
+                
+                const activeIndices = new Set([11, 12, 13, 14, 15, 16, 23, 24, 25, 26, 27, 28]);
+                frame.pose.forEach((lm, idx) => {
+                    if (activeIndices.has(idx) && (lm.visibility || 1.0) > 0.5) {
+                        ctx.fillStyle = '#00ff00';
+                        ctx.beginPath();
+                        ctx.arc(lm.x * w, lm.y * h, 3, 0, 2 * Math.PI);
+                        ctx.fill();
+                    }
+                });
+            }
+
+            ['left_hand', 'right_hand'].forEach(key => {
+                if (frame[key]) {
+                    const hLms = frame[key];
+                    const isCollapsed = Math.abs(hLms[4].x - hLms[20].x) < 0.01 && 
+                                        Math.abs(hLms[4].y - hLms[20].y) < 0.01;
+                    if (isCollapsed) return;
+                    FINGER_DATA.forEach(finger => {
+                        ctx.strokeStyle = finger.color; ctx.lineWidth = 2; ctx.beginPath();
+                        finger.conns.forEach(([s, e]) => {
+                            const p1 = hLms[s], p2 = hLms[e];
+                            if (p1 && p2) { ctx.moveTo(p1.x * w, p1.y * h); ctx.lineTo(p2.x * w, p2.y * h); }
+                        });
+                        ctx.stroke();
+                    });
+                    hLms.forEach(lm => {
+                        ctx.fillStyle = '#fff';
+                        ctx.beginPath();
+                        ctx.arc(lm.x * w, lm.y * h, 2, 0, 2 * Math.PI);
+                        ctx.fill();
+                    });
+                }
+            });
+        }
+
+        function animate(timestamp) {
+            if (!isPlaying) return;
+            const elapsed = timestamp - lastTimestamp;
+            if (elapsed > frameInterval) {
+                lastTimestamp = timestamp - (elapsed % frameInterval);
+                draw();
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function startSkeletonPlayback(extractedFrames) {
+            frames = extractedFrames;
+            currentFrameIndex = 0;
+            lastTimestamp = performance.now();
+            isPlaying = true;
+            video.classList.add('hidden');
+            canvas.classList.remove('hidden');
+            status.innerText = `Drawing ${frames.length} frames`;
+            requestAnimationFrame(animate);
+        }
+    </script>
+</body>
+</html>

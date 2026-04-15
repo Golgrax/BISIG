@@ -1,0 +1,7 @@
+[
+  { "id": 1, "name": "HealthFirst Clinic", "type": "Medical", "location": "Makati", "verified": true },
+  { "id": 2, "name": "Metro Central Bank", "type": "Finance", "location": "BGC", "verified": true },
+  { "id": 3, "name": "Greenwich Pizza", "type": "Dining", "location": "Cebu", "verified": true },
+  { "id": 4, "name": "SM Supermall", "type": "Retail", "location": "North Edsa", "verified": true },
+  { "id": 5, "name": "National Museum", "type": "Culture", "location": "Manila", "verified": false }
+]
