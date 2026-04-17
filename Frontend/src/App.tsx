@@ -342,8 +342,18 @@ const Foot = () => (
             through AI-driven translation.
           </p>
           <div className="flex">
-            <button className="btn primary">Get Involved</button>
-            <button className="btn ghost">Documentation</button>
+            <button
+              className="btn primary"
+              onClick={() => (window.location.href = "mailto:benjo@pro.space")}
+            >
+              Get Involved
+            </button>
+            <button
+              className="btn ghost"
+              onClick={() => window.open("/paper.pdf", "_blank")}
+            >
+              Documentation
+            </button>
           </div>
         </div>
         <div
@@ -362,9 +372,21 @@ const Foot = () => (
             Connect With Us
           </p>
           <div className="flex" style={{ gap: "1rem" }}>
-            <Github size={20} style={{ cursor: "pointer" }} />
-            <ExternalLink size={20} style={{ cursor: "pointer" }} />
-            <Mail size={20} style={{ cursor: "pointer" }} />
+            <Github
+              size={20}
+              style={{ cursor: "pointer" }}
+              onClick={() => window.open("https://github.com/Golgrax/BISIG", "_blank")}
+            />
+            <ExternalLink
+              size={20}
+              style={{ cursor: "pointer" }}
+              onClick={() => window.open("https://huggingface.co/datasets/Golgrax/bisig-fsl-dataset", "_blank")}
+            />
+            <Mail
+              size={20}
+              style={{ cursor: "pointer" }}
+              onClick={() => (window.location.href = "mailto:benjo@pro.space")}
+            />
           </div>
           <p
             style={{
@@ -2538,8 +2560,23 @@ const ResearchPage = () => (
           inclusivity.
         </p>
         <div className="flex">
-          <button className="btn primary">Read Paper</button>
-          <button className="btn">Dataset</button>
+          <button
+            className="btn primary"
+            onClick={() => window.open("/paper.pdf", "_blank")}
+          >
+            Read Paper
+          </button>
+          <button
+            className="btn"
+            onClick={() =>
+              window.open(
+                "https://huggingface.co/datasets/Golgrax/bisig-fsl-dataset",
+                "_blank"
+              )
+            }
+          >
+            Dataset
+          </button>
         </div>
       </motion.div>
       <motion.div
